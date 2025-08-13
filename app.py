@@ -10,18 +10,27 @@ from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 
-# ---------- SETTINGS ----------
-st.set_page_config(page_title="Boston Housing Price Predictor", layout="wide")
+# ---------- PAGE CONFIG ----------
+st.set_page_config(page_title="🏡 Boston Housing Price Predictor", layout="wide")
+
+# ---------- CUSTOM CSS ----------
 st.markdown("""
 <style>
     .main { background-color: #F8F9FA; }
     h1, h2, h3, h4 { color: #2C3E50; }
+    .sidebar .sidebar-content {
+        background-color: #ECECEC;
+        padding: 20px;
+    }
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------- FUNCTIONS ----------
 def make_arrow_safe(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert DataFrame columns to Arrow-compatible types."""
     return df.convert_dtypes().infer_objects()
 
 @st.cache_data
@@ -37,74 +46,75 @@ with st.spinner("Loading dataset..."):
 with open('model.pkl', 'rb') as f:
     model = pickle.load(f)
 
-# Train-test split for evaluation
 X = df.drop('MEDV', axis=1)
 y = df['MEDV']
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-# ---------- HEADER ----------
-st.title("Boston Housing Price Prediction Dashboard")
-st.caption("Explore the dataset, visualize trends, and predict housing prices using Machine Learning.")
+# ---------- SIDEBAR ----------
+st.sidebar.title("📌 Navigation")
+menu = st.sidebar.radio(
+    "Go to:",
+    ["🏠 Overview", "📊 Data Exploration", "📈 Visualisation", "🧮 Prediction", "📉 Performance"]
+)
 
-# ---------- TABS ----------
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Overview", 
-    "Data Exploration", 
-    "Visualisation", 
-    "Prediction", 
-    "Performance"
-])
+st.sidebar.markdown("---")
+st.sidebar.write("**Dataset shape:**", df.shape)
+st.sidebar.write("**Target:** MEDV")
+st.sidebar.markdown("Built with ❤️ using Streamlit")
 
-# ---------- TAB 1: OVERVIEW ----------
-with tab1:
-    st.header("Project Overview")
-    st.markdown("""
-    This app predicts **Boston house prices** using a trained **Random Forest** model.
+# ---------- PAGES ----------
+if menu == "🏠 Overview":
+    st.title("🏡 Boston Housing Price Prediction Dashboard")
+    st.caption("Explore the dataset, visualize trends, and predict housing prices using Machine Learning.")
 
-    **Dataset**: Boston Housing Prices  
-    **Features**: 13 predictors (CRIM, ZN, INDUS, CHAS, NOX, RM, AGE, DIS, RAD, TAX, PTRATIO, B, LSTAT)  
-    **Target**: MEDV — Median home value in $1000's  
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.subheader("📌 Project Overview")
+        st.markdown("""
+        This app predicts **Boston house prices** using a trained **Random Forest** model.
 
-    ### Features of the App:
-    - Explore dataset with interactive filtering
-    - View multiple visualisations
-    - Make predictions with confidence intervals
-    - Compare model performance  
-    """)
+        **Dataset**: Boston Housing Prices  
+        **Features**: 13 predictors  
+        **Target**: MEDV — Median home value in $1000's  
 
-# ---------- TAB 2: DATA EXPLORATION ----------
-with tab2:
-    st.header("Data Overview")
+        ### Features:
+        - 📊 Interactive data exploration
+        - 📈 Multiple visualisations
+        - 🧮 Price predictions with confidence intervals
+        - 📉 Model performance comparison
+        """)
+    with col2:
+        st.image("https://cdn-icons-png.flaticon.com/512/69/69524.png", width=180)
+
+elif menu == "📊 Data Exploration":
+    st.header("📊 Data Overview")
     st.write("**Shape:**", df.shape)
     st.write("**Columns:**", df.columns.tolist())
     st.write("**Data Types:**", df.dtypes)
     st.subheader("Sample Data")
     st.dataframe(make_arrow_safe(df.head()), use_container_width=True)
 
-    st.subheader("Filter Data")
+    st.subheader("🔍 Filter Data")
     col = st.selectbox("Select column to filter", df.columns)
     col_data = pd.to_numeric(df[col], errors='coerce')
     if pd.api.types.is_numeric_dtype(col_data):
         min_val, max_val = float(col_data.min()), float(col_data.max())
-        if min_val == max_val:
-            st.write(f"Column {col} has constant value: {min_val}")
-            filtered_df = df.copy()
-        else:
+        if min_val != max_val:
             val = st.slider(f"Filter {col}", min_val, max_val, (min_val, max_val))
             filtered_df = df[(col_data >= val[0]) & (col_data <= val[1])]
+        else:
+            st.write(f"Column {col} has constant value: {min_val}")
+            filtered_df = df.copy()
     else:
         unique_vals = df[col].dropna().unique().tolist()
-        selected_vals = st.multiselect(
-            f"Select {col} values", unique_vals, default=unique_vals
-        )
+        selected_vals = st.multiselect(f"Select {col} values", unique_vals, default=unique_vals)
         filtered_df = df[df[col].isin(selected_vals)]
     st.dataframe(make_arrow_safe(filtered_df), use_container_width=True)
 
-# ---------- TAB 3: VISUALISATION ----------
-with tab3:
-    st.header("Visualisations")
+elif menu == "📈 Visualisation":
+    st.header("📈 Visualisations")
     col_choice = st.selectbox("Select column for histogram", df.columns)
     st.subheader(f"Histogram of {col_choice}")
     st.bar_chart(df[col_choice])
@@ -126,9 +136,8 @@ with tab3:
     ax2.set_ylabel(y_col)
     st.pyplot(fig2)
 
-# ---------- TAB 4: PREDICTION ----------
-with tab4:
-    st.header("Predict House Price")
+elif menu == "🧮 Prediction":
+    st.header("🧮 Predict House Price")
     inputs = {}
     for feature in X.columns:
         if feature == 'CHAS':
@@ -137,9 +146,7 @@ with tab4:
             min_val = float(df[feature].min())
             max_val = float(df[feature].max())
             default_val = float(df[feature].mean())
-            inputs[feature] = st.number_input(
-                feature, min_value=min_val, max_value=max_val, value=default_val
-            )
+            inputs[feature] = st.number_input(feature, min_value=min_val, max_value=max_val, value=default_val)
     if st.button('Predict'):
         with st.spinner("Making prediction..."):
             features = np.array([[inputs[f] for f in X.columns]])
@@ -151,13 +158,11 @@ with tab4:
             st.success(f'Predicted Price: ${prediction[0]:.2f}k')
             st.info(f"95% Confidence Interval: ${lower_bound:.2f}k - ${upper_bound:.2f}k")
 
-# ---------- TAB 5: PERFORMANCE ----------
-with tab5:
-    st.header("Model Performance")
-    with st.spinner("Evaluating model..."):
-        y_pred = model.predict(X_test)
-        mse = mean_squared_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
+elif menu == "📉 Performance":
+    st.header("📉 Model Performance")
+    y_pred = model.predict(X_test)
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
     st.write(f"**Mean Squared Error:** {mse:.2f}")
     st.write(f"**R² Score:** {r2:.2f}")
 
